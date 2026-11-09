@@ -17,6 +17,28 @@
     enabled: true
     daemon_reload: true
 
+# The workstations take thousands of failed SSH logins a month from outside.
+- name: Workstation | Configure fail2ban
+  ansible.builtin.template:
+    src: fail2ban-impact-lab.conf.j2
+    dest: /etc/fail2ban/jail.d/impact-lab.conf
+    mode: "0644"
+  notify: Restart fail2ban
+
+# Test the whole configuration before the restart handler runs, so a bad
+# setting fails the play instead of leaving fail2ban stopped.
+- name: Workstation | Test fail2ban configuration
+  ansible.builtin.command: fail2ban-client --test
+  changed_when: false
+  when: not ansible_check_mode
+
+- name: Workstation | Enable fail2ban
+  ansible.builtin.service:
+    name: fail2ban
+    state: started
+    enabled: true
+  when: not ansible_check_mode
+
 # GDM has no DefaultSession option: the session it launches is whatever
 # AccountsService recorded for the user, and a user it has never seen gets an
 # empty record, which lands in GDM's built-in gnome-session fallback and dies

@@ -1,0 +1,15 @@
+---
+# fail2ban: addresses that are never banned. Add the Ansible controller here
+# (in your untracked inventory or group_vars) so a failed run can never lock
+# it out, e.g. in inventory.local:
+#   [workstations:vars]
+#   workstation_fail2ban_ignoreip=["127.0.0.1/8", "::1", "192.0.2.10"]
+workstation_fail2ban_ignoreip:
+  - 127.0.0.1/8
+  - ::1
+# Ban for 1 hour after 5 failures in 10 minutes. Repeat offenders get longer
+# bans (doubling each time), up to 1 week.
+workstation_fail2ban_bantime: 1h
+workstation_fail2ban_findtime: 10m
+workstation_fail2ban_maxretry: 5
+workstation_fail2ban_bantime_maxtime: 1w

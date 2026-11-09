@@ -1,0 +1,12 @@
+# {{ ansible_managed }}
+#
+# Site settings on top of Ubuntu's jail.d/defaults-debian.conf, which already
+# enables the sshd jail (systemd journal backend) and bans with nftables.
+# The nftables bans live in fail2ban's own table and work alongside ufw.
+[DEFAULT]
+ignoreip = {{ workstation_fail2ban_ignoreip | join(' ') }}
+bantime = {{ workstation_fail2ban_bantime }}
+findtime = {{ workstation_fail2ban_findtime }}
+maxretry = {{ workstation_fail2ban_maxretry }}
+bantime.increment = true
+bantime.maxtime = {{ workstation_fail2ban_bantime_maxtime }}

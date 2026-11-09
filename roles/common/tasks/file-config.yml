@@ -64,6 +64,19 @@
     dest: /etc/apt/apt.conf.d/60unattended-upgrades-local
     mode: "0644"
 
+- name: Files | Create apt-daily-upgrade.timer drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/apt-daily-upgrade.timer.d
+    state: directory
+    mode: "0755"
+
+- name: Files | Run unattended-upgrades just before the reboot window
+  ansible.builtin.copy:
+    src: apt-daily-upgrade-timer.conf
+    dest: /etc/systemd/system/apt-daily-upgrade.timer.d/10-before-reboot.conf
+    mode: "0644"
+  notify: Restart apt-daily-upgrade timer
+
 - name: Files | Configure smartmontools
   ansible.builtin.copy:
     src: smartmontools

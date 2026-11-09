@@ -50,6 +50,7 @@
       - code
       - zoom
       - zotero
+      - fail2ban
 
 # The debconf answer above only steers package postinsts, which will not run
 # again on a host where gdm3 is already installed. These two are what actually

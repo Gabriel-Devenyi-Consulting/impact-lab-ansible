@@ -1,10 +1,11 @@
-Unattended-Upgrade::Allowed-Origins {
-	"${distro_id}:${distro_codename}";
-	"${distro_id}:${distro_codename}-security";
-	"${distro_id}ESMApps:${distro_codename}-apps-security";
-	"${distro_id}ESM:${distro_codename}-infra-security";
-	"${distro_id}:${distro_codename}-updates";
-	"${distro_id}:${distro_codename}-backports";
+// Upgrade packages from every configured repository, not only the Ubuntu
+// archive. The third-party repositories (browsers, VS Code, Zoom, Zotero,
+// PPAs, ...) otherwise only update when the playbook runs, which left the
+// browsers several major versions behind on security fixes.
+// unattended-upgrades only upgrades installed packages; it never installs a
+// package that is not already present.
+Unattended-Upgrade::Origins-Pattern {
+	"origin=*";
 };
 
 Unattended-Upgrade::AutoFixInterruptedDpkg "true";
@@ -13,3 +14,14 @@ Unattended-Upgrade::SyslogEnable "true";
 Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
 Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
 Unattended-Upgrade::Remove-Unused-Dependencies "true";
+
+// Reboot when an upgrade needs it (kernel, libc, NVIDIA driver), but only
+// when nobody is logged in. Without reboots, kernel fixes never take effect
+// and old kernels stay installed; their NVIDIA module packages then block the
+// NVIDIA driver security updates ("held broken packages").
+// The logged-in check runs when unattended-upgrades runs, not at reboot time,
+// so apt-daily-upgrade.timer is moved to just before the reboot time (see
+// apt-daily-upgrade-timer.conf).
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "false";
+Unattended-Upgrade::Automatic-Reboot-Time "03:00";
