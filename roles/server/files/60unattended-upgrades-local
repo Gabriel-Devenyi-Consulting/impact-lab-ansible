@@ -1,0 +1,21 @@
+// Servers host shared services, so they update more conservatively than
+// workstations (see roles/common/files/60unattended-upgrades-local).
+//
+// Install Ubuntu's -updates pocket as well as -security. The stock list in
+// 50unattended-upgrades already covers the release, -security and ESM.
+// Third-party repositories (for example out-of-tree kernels or filesystem
+// modules) are deliberately NOT allowed: a kernel and its out-of-tree modules
+// must be upgraded together and checked before a reboot, so do those by hand
+// in a maintenance window.
+Unattended-Upgrade::Allowed-Origins {
+	"${distro_id}:${distro_codename}-updates";
+};
+
+Unattended-Upgrade::AutoFixInterruptedDpkg "true";
+Unattended-Upgrade::SyslogEnable "true";
+Unattended-Upgrade::Remove-Unused-Kernel-Packages "true";
+Unattended-Upgrade::Remove-New-Unused-Dependencies "true";
+
+// Never reboot a server automatically: a reboot interrupts every client of
+// its services. Watch /var/run/reboot-required and reboot in a planned window.
+Unattended-Upgrade::Automatic-Reboot "false";

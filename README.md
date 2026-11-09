@@ -48,7 +48,7 @@ ansible-galaxy collection install -r requirements.yml
 
 ## Inventory
 
-`inventory` defines three host groups, referenced by `site.yml`:
+`inventory` defines four host groups, referenced by `site.yml`:
 
 ```ini
 [workstations]
@@ -59,10 +59,13 @@ workstation-03.example.com
 [computeservers]
 
 [mobilestations]
+
+[servers]
 ```
 
 - `workstations` and `computeservers` get the **common** base role.
 - `workstations` and `mobilestations` get the **workstation** desktop role.
+- `servers` get only the **server** role (conservative automatic updates).
 - All hosts get the **CVMFS + Lmod** integration (it targets `hosts: all`).
 
 The committed `inventory` holds placeholder hostnames only. Keep your real
@@ -73,7 +76,10 @@ cp inventory inventory.local   # then edit with your hostnames
 ansible-playbook site.yml -i inventory.local
 ```
 
-`computeservers` and `mobilestations` are left as empty placeholders.
+`computeservers`, `mobilestations` and `servers` are left as empty placeholders.
+
+To manage the controller itself as a server, add it to `servers` with
+`ansible_connection=local` in your `inventory.local`.
 
 ## Usage
 
@@ -168,6 +174,11 @@ targeted).
   limit, leaving users at a black screen with only a cursor. User units are
   re-read at each login, so no running session is disturbed.
 
+### `roles/server` — servers
+
+- **Automatic updates:** `unattended-upgrades` for the Ubuntu archive only,
+  with no automatic reboots. See [Servers](#servers).
+
 ### `externals/cvmfs-ansible` — CVMFS + Lmod (all hosts)
 
 A git submodule imported via `import_playbook`. It installs and configures the
@@ -186,14 +197,15 @@ full details.
 ├── callback_plugins/
 │   └── task_summary.py    # prints a per-task failure/ok summary at run end
 ├── group_vars/all/all.yml # ansible_user: localadmin
-├── inventory              # host groups: workstations, computeservers, mobilestations
+├── inventory              # host groups: workstations, computeservers, mobilestations, servers
 ├── requirements.yml       # ansible.posix, community.general collections
 ├── roles/
 │   ├── common/            # base system role (tasks, handlers, files, vars)
-│   └── workstation/       # desktop environment role (tasks, files)
+│   ├── server/            # automatic-update policy for servers (tasks, files)
+│   └── workstation/       # desktop environment role (tasks, files, templates)
 ├── externals/
 │   └── cvmfs-ansible/     # CVMFS + Lmod integration (git submodule)
-└── site.yml               # playbook entry point (three plays)
+└── site.yml               # playbook entry point (four plays)
 ```
 
 ## Apptainer GUI and GPU access
@@ -264,6 +276,26 @@ A user who stays logged in (or leaves a desktop session open) prevents the
 reboot. Check `/var/run/reboot-required` and reboot such machines by hand.
 
 Flatpaks update daily from their own timer (`roles/workstation`).
+
+### Servers
+
+`roles/server` is more conservative, because a server reboot or a broken
+upgrade interrupts every client of its services:
+
+- **Ubuntu archive only:** the release, `-security`, ESM and `-updates`
+  pockets. Third-party repositories are not upgraded automatically. A kernel
+  and any out-of-tree modules built for it (for example a filesystem driver
+  built with DKMS) have to move together, so upgrade those by hand in a
+  maintenance window. Before rebooting, check that `dkms status` shows the
+  modules built for the new kernel.
+- **No automatic reboots** (`Automatic-Reboot "false"`). Check
+  `/var/run/reboot-required` and reboot in a planned window.
+
+The server play is tagged `packages` and `files` like the other roles:
+
+```bash
+ansible-playbook site.yml --limit servers --tags packages,files
+```
 
 ## Per-user caches
 

@@ -11,5 +11,11 @@
   roles:
     - workstation
 
+- name: Configure servers
+  hosts: servers
+  become: true
+  roles:
+    - server
+
 - name: Configure CVMFS and Lmod
   import_playbook: externals/cvmfs-ansible/site.yml
