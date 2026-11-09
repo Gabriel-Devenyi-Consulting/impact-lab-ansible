@@ -132,7 +132,8 @@ targeted).
   unattended-upgrades (see [Automatic updates](#automatic-updates)), polkit rules
   (restrict power management, allow USB mounts, lock NetworkManager),
   systemd (disable suspend/hibernate, 10s shutdown timeout), per-user caches
-  on local disk (see [Per-user caches](#per-user-caches)), apcupsd (USB
+  on local disk (see [Per-user caches](#per-user-caches)), local scratch
+  space (see [Local scratch](#local-scratch)), apcupsd (USB
   UPS), watchdog (`iTCO_wdt`), smartmontools, Firefox APT pins.
 - **Software:** installs [DwarFS](https://github.com/mhx/dwarfs) (version-pinned
   from GitHub), and [`uv`](https://github.com/astral-sh/uv) +
@@ -317,6 +318,32 @@ server is busy. The pieces are:
 `/tmp` is not used because it is tmpfs on these hosts: caches would use RAM
 and start empty after every reboot. The change takes effect at a user's next
 login once all their existing sessions have ended.
+
+## Local scratch
+
+`roles/common` gives every user a directory on the host's local disk at
+`/scratch/<user>`. Use it for job working directories and other intermediate
+files, and write only final results to the NFS shares. A pipeline's
+intermediate files then stay on the local disk, so they don't load the network
+and the file server that every workstation shares. For example:
+
+```bash
+fmriprep ... -w /scratch/$USER/fmriprep_work
+```
+
+- `/usr/local/libexec/scratch-dir` creates the directory, owned by the user
+  with mode 0700. A `user@.service` drop-in runs it at each login, and the
+  playbook runs it once for users who are already logged in.
+- `/etc/tmpfiles.d/scratch.conf` deletes contents not read or changed for 30
+  days. Scratch is not backed up.
+- `/etc/apptainer/apptainer.conf` binds `/scratch` into every container, so
+  Neurodesk tools can use it without extra `APPTAINER_BIND` settings.
+
+To apply only this part:
+
+```bash
+ansible-playbook site.yml --tags scratch
+```
 
 ## Site-specific assumptions
 

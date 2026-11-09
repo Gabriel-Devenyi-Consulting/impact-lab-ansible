@@ -33,6 +33,13 @@
       tags: files
   tags: files
 
+- name: Scratch | Configure local scratch space
+  ansible.builtin.include_tasks:
+    file: scratch.yml
+    apply:
+      tags: [files, scratch]
+  tags: [files, scratch]
+
 - name: Apcupsd | Configure USB UPS
   ansible.builtin.include_tasks:
     file: apcupsd.yml
