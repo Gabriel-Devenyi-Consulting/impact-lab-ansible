@@ -1,0 +1,16 @@
+#!/bin/sh
+# Create /scratch/<user> for the UID given as $1. Run as root by the
+# user@.service drop-in (50-scratch.conf) before the user's systemd manager
+# starts, so the directory exists at every graphical, console and ssh login.
+#
+# Same layout as xdg-cache-dir: the parent is root-owned 0755, so nobody can
+# pre-create or symlink another user's directory, and install -d resets owner
+# and mode on one that already exists.
+set -eu
+
+entry=$(getent passwd "$1")
+user=$(printf '%s\n' "$entry" | cut -d: -f1)
+gid=$(printf '%s\n' "$entry" | cut -d: -f4)
+
+install -d -m 0755 -o root -g root /scratch
+install -d -m 0700 -o "$1" -g "$gid" "/scratch/$user"

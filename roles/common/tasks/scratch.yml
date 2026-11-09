@@ -1,0 +1,58 @@
+---
+# Local scratch space at /scratch/<user> on the workstation's own disk.
+#
+# Pipelines such as fMRIPrep write tens of GB of intermediate files to their
+# working directory. On the NFS server those writes cross the network and land
+# on spinning disks shared by every workstation, so one job slows everyone
+# down. On local NVMe they cost nothing outside this host. Only the final
+# outputs need to go to /data.
+- name: Scratch | Install the per-user scratch directory helper
+  ansible.builtin.copy:
+    src: scratch-dir
+    dest: /usr/local/libexec/scratch-dir
+    mode: "0755"
+
+- name: Scratch | Create user@.service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/user@.service.d
+    state: directory
+    mode: "0755"
+
+- name: Scratch | Create each user's scratch directory at login
+  ansible.builtin.copy:
+    src: scratch-user-service.conf
+    dest: /etc/systemd/system/user@.service.d/50-scratch.conf
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Scratch | Create /scratch and age out abandoned contents
+  ansible.builtin.copy:
+    src: scratch-tmpfiles.conf
+    dest: /etc/tmpfiles.d/scratch.conf
+    mode: "0644"
+  notify: Create scratch parent directory
+
+# The drop-in only runs when a user's systemd manager starts, so give users
+# who are logged in now their directory without waiting for a fresh login.
+- name: Scratch | Create scratch directories for users already logged in
+  ansible.builtin.shell: |
+    set -eu
+    for uid in $(loginctl list-users --no-legend | awk '$1 >= 1000 {print $1}'); do
+      user=$(getent passwd "$uid" | cut -d: -f1) || continue
+      [ -d "/scratch/$user" ] && continue
+      /usr/local/libexec/scratch-dir "$uid"
+      echo "created /scratch/$user"
+    done
+  register: scratch_existing_users
+  changed_when: scratch_existing_users.stdout | length > 0
+
+# Neurodesk's wrappers bind only /tmp and whatever the user lists in
+# APPTAINER_BIND, so without this a container cannot see /scratch and
+# "fmriprep -w /scratch/..." fails. A system bind path applies to every
+# container launch. apptainer.conf is a dpkg conffile: package upgrades keep
+# this local edit (unattended-upgrades runs dpkg with --force-confold).
+- name: Scratch | Bind /scratch into every Apptainer container
+  ansible.builtin.lineinfile:
+    path: /etc/apptainer/apptainer.conf
+    line: bind path = /scratch
+    insertafter: '^bind path = /etc/hosts'

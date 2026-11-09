@@ -49,3 +49,8 @@
   ansible.builtin.command:
     cmd: systemd-tmpfiles --create /etc/tmpfiles.d/xdg-cache.conf
   changed_when: true
+
+- name: Create scratch parent directory
+  ansible.builtin.command:
+    cmd: systemd-tmpfiles --create /etc/tmpfiles.d/scratch.conf
+  changed_when: true
