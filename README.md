@@ -123,7 +123,7 @@ targeted).
   enabling Ubuntu's commented-out `/etc/profile.d` loop in `/etc/bash.bashrc`
   so those scripts also reach interactive non-login shells (see
   [Apptainer GUI and GPU access](#apptainer-gui-and-gpu-access)),
-  unattended-upgrades, polkit rules
+  unattended-upgrades (see [Automatic updates](#automatic-updates)), polkit rules
   (restrict power management, allow USB mounts, lock NetworkManager),
   systemd (disable suspend/hibernate, 10s shutdown timeout), per-user caches
   on local disk (see [Per-user caches](#per-user-caches)), apcupsd (USB
@@ -142,6 +142,13 @@ targeted).
 - **Graphics:** runs `ubuntu-drivers install` (auto-detects NVIDIA drivers).
 - **Flatpak:** enables the Flathub remote and a systemd timer for automatic
   flatpak updates.
+- **fail2ban:** installs fail2ban with Ubuntu's `sshd` jail (systemd journal,
+  nftables bans, which coexist with ufw). `jail.d/impact-lab.conf` bans for 1h
+  after 5 failures in 10 minutes, doubling for repeat offenders up to 1 week.
+  Only localhost is exempt by default. Add your Ansible controller to
+  `workstation_fail2ban_ignoreip` in your untracked inventory so a failed run
+  can't lock it out. The other `workstation_fail2ban_*` settings are in
+  `roles/workstation/defaults/main.yml`.
 - **Display manager:** installs GDM and makes it the default login manager —
   preseeding the shared debconf answer, `/etc/X11/default-display-manager`, and
   the `display-manager.service` symlink, so it wins over the SDDM that
@@ -234,6 +241,29 @@ rather than a login shell, and the terminals opened inside it are non-login
 shells, so `roles/common` also uncomments the `/etc/profile.d` loop that Ubuntu
 ships disabled in `/etc/bash.bashrc`. Changing the script therefore takes
 effect at the next new terminal, not the next reboot.
+
+## Automatic updates
+
+`roles/common` configures `unattended-upgrades` to:
+
+- **Upgrade packages from every configured repository** (`Origins-Pattern
+  "origin=*"`), not only the Ubuntu archive. Before this, the browsers, VS Code,
+  Zoom, Zotero and the PPAs only updated when the playbook ran, and fell
+  several major versions behind. It only upgrades installed packages; it never
+  installs new ones.
+- **Reboot at 03:00 when an update needs it, but only if nobody is logged
+  in** (`Automatic-Reboot-WithUsers "false"`). Without reboots, kernel fixes
+  never take effect, and old kernels stay installed. Their NVIDIA module
+  packages then block NVIDIA driver security updates ("held broken packages"
+  in `/var/log/unattended-upgrades/unattended-upgrades.log`).
+- **Run at about 02:30** (an `apt-daily-upgrade.timer` drop-in, instead of the
+  stock 06:00). `unattended-upgrades` checks for logged-in users when it runs,
+  not at reboot time, so the run has to sit just before the reboot time.
+
+A user who stays logged in (or leaves a desktop session open) prevents the
+reboot. Check `/var/run/reboot-required` and reboot such machines by hand.
+
+Flatpaks update daily from their own timer (`roles/workstation`).
 
 ## Per-user caches
 
