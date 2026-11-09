@@ -1,0 +1,79 @@
+- name: Snapd | Check if snap is installed
+  ansible.builtin.command: snap list
+  register: common_snap_list_result
+  failed_when: false
+  changed_when: false
+
+- name: Snapd | Remove all snaps
+  ansible.builtin.shell: |
+    set -o pipefail
+    snap list | awk 'NR>1 {print $1}' | while read -r pkg; do
+      snap remove --purge "$pkg"
+    done
+  when: common_snap_list_result.rc == 0
+  failed_when: false
+  changed_when: true
+
+- name: Snapd | Remove snap-store
+  ansible.builtin.command: snap remove --purge snap-store
+  when: common_snap_list_result.rc == 0
+  failed_when: false
+  changed_when: true
+
+- name: Snapd | Remove remaining snaps with '-' notes
+  ansible.builtin.shell: |
+    set -o pipefail
+    snap list | awk 'NR>1 && $6 == "-" {print $1}' | while read -r pkg; do
+      snap remove --purge "$pkg"
+    done
+  when: common_snap_list_result.rc == 0
+  failed_when: false
+  changed_when: true
+
+- name: Snapd | Remove base snaps
+  ansible.builtin.shell: |
+    set -o pipefail
+    snap list | awk 'NR>1 && $6 == "base" {print $1}' | while read -r pkg; do
+      snap remove --purge "$pkg"
+    done
+  when: common_snap_list_result.rc == 0
+  failed_when: false
+  changed_when: true
+
+- name: Snapd | Remove snapd snap
+  ansible.builtin.command: snap remove --purge snapd
+  when: common_snap_list_result.rc == 0
+  failed_when: false
+  changed_when: true
+
+- name: Snapd | Purge snapd package
+  ansible.builtin.apt:
+    name: snapd
+    state: absent
+    purge: true
+
+- name: Snapd | Autoremove leftover dependencies
+  ansible.builtin.apt:
+    autoremove: true
+
+- name: Snapd | Clear snapd cache
+  ansible.builtin.file:
+    path: /var/cache/snapd
+    state: absent
+
+- name: Snapd | Deploy APT pin to block snapd reinstallation
+  ansible.builtin.copy:
+    src: nosnap.pref
+    dest: /etc/apt/preferences.d/nosnap.pref
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Snapd | Mask snapd systemd units
+  ansible.builtin.systemd:
+    name: "{{ item }}"
+    masked: true
+  loop:
+    - snapd.socket
+    - snapd.service
+  failed_when: false

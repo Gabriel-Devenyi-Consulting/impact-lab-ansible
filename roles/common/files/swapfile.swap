@@ -1,0 +1,9 @@
+[Unit]
+Description=Disk swapfile
+
+[Swap]
+What=/swapfile
+Options=pri=-1
+
+[Install]
+WantedBy=swap.target

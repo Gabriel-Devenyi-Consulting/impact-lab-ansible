@@ -1,0 +1,16 @@
+#!/bin/sh
+# Create /var/tmp/xdg-cache/<user> for the UID given as $1. Run as root by the
+# user@.service drop-in, before the user's systemd manager starts, so the
+# directory exists by the time 60-xdg-cache.conf points XDG_CACHE_HOME at it.
+#
+# The parent is root-owned 0755, so unlike a per-user directory directly in
+# world-writable /var/tmp nobody can pre-create or symlink another user's
+# cache; install -d also resets owner and mode on one that already exists.
+set -eu
+
+entry=$(getent passwd "$1")
+user=$(printf '%s\n' "$entry" | cut -d: -f1)
+gid=$(printf '%s\n' "$entry" | cut -d: -f4)
+
+install -d -m 0755 -o root -g root /var/tmp/xdg-cache
+install -d -m 0700 -o "$1" -g "$gid" "/var/tmp/xdg-cache/$user"

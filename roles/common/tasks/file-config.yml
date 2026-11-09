@@ -1,0 +1,223 @@
+# Neurodesk's wrappers now bind the X authority cookie themselves
+# (transparent-singularity 72aa3275), and on 2026-08-25 upstream regenerated the
+# wrappers already published to CVMFS, so 99-apptainer-display.sh has nothing
+# left to fix. Removed rather than simply dropped from the playbook: the file is
+# already on every workstation and ansible will not clean it up on its own.
+# See https://github.com/neurodesk/neurocommand/issues/809
+- name: Files | Remove the obsolete apptainer display workaround
+  ansible.builtin.file:
+    path: /etc/profile.d/99-apptainer-display.sh
+    state: absent
+
+# Containers ship Mesa's GLX vendor library but not NVIDIA's, so which GPU the
+# monitor is plugged into decides whether their GUIs work at all, and CUDA
+# tools never work. Self-gating: inert on hosts with no NVIDIA GPU.
+- name: Files | Pass the NVIDIA driver stack into apptainer
+  ansible.builtin.copy:
+    src: 99-apptainer-gpu.sh
+    dest: /etc/profile.d/99-apptainer-gpu.sh
+    mode: "0644"
+
+# /etc/profile.d is only sourced by login shells. A Wayland desktop session is
+# started by systemd rather than a login shell, and the terminals opened inside
+# it are non-login shells, so nothing in /etc/profile.d ever runs there —
+# 99-apptainer-gpu.sh above, xdg.cache.sh and bash_history_timestamp.sh all
+# silently do nothing on the desktop. Ubuntu ships the fix for this commented
+# out in /etc/bash.bashrc; uncomment it.
+- name: Files | Source /etc/profile.d from interactive non-login shells
+  ansible.builtin.replace:
+    path: /etc/bash.bashrc
+    regexp: |-
+      #if \[ -d /etc/profile\.d \]; then
+      #  for _i in /etc/profile\.d/\*\.sh; do
+      #    if \[ -r \$_i \]; then
+      #      \. \$_i
+      #    fi
+      #  done
+      #  unset _i
+      #fi
+    replace: |-
+      if [ -d /etc/profile.d ]; then
+        for _i in /etc/profile.d/*.sh; do
+          if [ -r $_i ]; then
+            . $_i
+          fi
+        done
+        unset _i
+      fi
+
+# Every shell on the box sources this file, so a syntax error locks everyone
+# out of a working shell. Fail the run here rather than at the next login.
+- name: Files | Verify /etc/bash.bashrc still parses
+  ansible.builtin.command: bash -n /etc/bash.bashrc
+  changed_when: false
+
+- name: Files | Enable periodic upgrades
+  ansible.builtin.copy:
+    src: 20auto-upgrades
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+
+- name: Files | Configure unattended-upgrades overrides
+  ansible.builtin.copy:
+    src: 60unattended-upgrades-local
+    dest: /etc/apt/apt.conf.d/60unattended-upgrades-local
+    mode: "0644"
+
+- name: Files | Configure smartmontools
+  ansible.builtin.copy:
+    src: smartmontools
+    dest: /etc/default/smartmontools
+    mode: "0644"
+  notify: Restart smartmontools
+
+- name: Files | Ensure polkit rules directory exists
+  ansible.builtin.file:
+    path: /etc/polkit-1/rules.d
+    state: directory
+    mode: "0755"
+
+- name: Files | Restrict restart, suspend and shutdown for users
+  ansible.builtin.copy:
+    src: 99-restrict-powermgmt.rules
+    dest: /etc/polkit-1/rules.d/99-restrict-powermgmt.rules
+    mode: "0644"
+  notify: Restart polkit
+
+- name: Files | Create logind.conf.d
+  ansible.builtin.file:
+    path: /etc/systemd/logind.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Files | Copy logind local config
+  ansible.builtin.copy:
+    src: disable-power.conf
+    dest: /etc/systemd/logind.conf.d/disable-power.conf
+    mode: "0644"
+
+- name: Files | Deploy Mozilla Firefox APT pin priority
+  ansible.builtin.copy:
+    src: mozilla-firefox-pin
+    dest: /etc/apt/preferences.d/mozilla-firefox-pin
+    mode: "0644"
+
+- name: Files | Block Ubuntu firefox package (prevents Snap reinstall)
+  ansible.builtin.copy:
+    src: noubuntu-firefox-pin
+    dest: /etc/apt/preferences.d/noubuntu-firefox-pin
+    mode: "0644"
+
+- name: Files | Enable bash history timestamps
+  ansible.builtin.copy:
+    src: bash_history_timestamp.sh
+    dest: /etc/profile.d/bash_history_timestamp.sh
+    mode: "0644"
+
+- name: Files | Disable apport crash reporting
+  ansible.builtin.lineinfile:
+    path: /etc/default/apport
+    regexp: '^enabled='
+    line: enabled=0
+
+
+- name: Files | Reduce systemd shutdown timeout
+  community.general.ini_file:
+    path: /etc/systemd/system.conf
+    section: Manager
+    option: DefaultTimeoutStopSec
+    value: 10s
+    mode: "0644"
+
+- name: Files | Create systemd sleep.conf.d
+  ansible.builtin.file:
+    path: /etc/systemd/sleep.conf.d
+    state: directory
+    mode: "0755"
+
+- name: Files | Disable suspend and hibernate
+  ansible.builtin.copy:
+    src: nosleep.conf
+    dest: /etc/systemd/sleep.conf.d/nosleep.conf
+    mode: "0644"
+
+- name: Files | Set polkit administrator identities
+  ansible.builtin.copy:
+    src: 10-admin-identities.rules
+    dest: /etc/polkit-1/rules.d/10-admin-identities.rules
+    mode: "0644"
+  notify: Restart polkit
+
+- name: Files | Lock NetworkManager for non-admins
+  ansible.builtin.copy:
+    src: 20-disallow-networkmanager.rules
+    dest: /etc/polkit-1/rules.d/20-disallow-networkmanager.rules
+    mode: "0644"
+  notify: Restart polkit
+
+- name: Files | Allow domain users to mount USB drives
+  ansible.builtin.copy:
+    src: 20-udisk-users.rules
+    dest: /etc/polkit-1/rules.d/20-udisk-users.rules
+    mode: "0644"
+  notify: Restart polkit
+
+- name: Files | Remove obsolete polkit localauthority pkla files
+  ansible.builtin.file:
+    path: /etc/polkit-1/localauthority/50-local.d/{{ item }}
+    state: absent
+  loop:
+    - 20-disallow-networkmanager.pkla
+    - 20-udisk-users.pkla
+
+- name: Files | Enable watchdog
+  ansible.builtin.lineinfile:
+    path: /etc/default/watchdog
+    regexp: '^run_watchdog='
+    line: run_watchdog=1
+  notify: Restart watchdog
+
+# Per-user caches live on local disk in /var/tmp/xdg-cache/<user> rather than
+# in the NFS home, where every cache write is a synchronous round trip to
+# the file server and stalls the desktop when the NAS is busy. Not /tmp: that is
+# tmpfs here, so caches would eat RAM and start cold after every reboot.
+# The rationale for each piece is in the files themselves. Takes effect at a
+# user's next login once all their existing sessions have ended (user@.service
+# only restarts then); nothing here touches running sessions.
+- name: Files | Install the per-user local cache directory helper
+  ansible.builtin.copy:
+    src: xdg-cache-dir
+    dest: /usr/local/libexec/xdg-cache-dir
+    mode: "0755"
+
+- name: Files | Create user@.service drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/system/user@.service.d
+    state: directory
+    mode: "0755"
+
+- name: Files | Create each user's local cache directory at login
+  ansible.builtin.copy:
+    src: xdg-cache-user-service.conf
+    dest: /etc/systemd/system/user@.service.d/50-xdg-cache.conf
+    mode: "0644"
+  notify: Reload systemd
+
+- name: Files | Age out local cache contents
+  ansible.builtin.copy:
+    src: xdg-cache-tmpfiles.conf
+    dest: /etc/tmpfiles.d/xdg-cache.conf
+    mode: "0644"
+  notify: Create local cache parent directory
+
+- name: Files | Point the desktop session's caches at local disk
+  ansible.builtin.copy:
+    src: 60-xdg-cache.conf
+    dest: /etc/environment.d/60-xdg-cache.conf
+    mode: "0644"
+
+- name: Files | Point ssh and console logins' caches at local disk
+  ansible.builtin.copy:
+    src: xdg.cache.sh
+    dest: /etc/profile.d/xdg.cache.sh
+    mode: "0644"

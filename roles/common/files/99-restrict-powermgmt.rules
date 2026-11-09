@@ -1,0 +1,19 @@
+polkit.addRule(function(action, subject) {
+    if (subject.isInGroup("domain admins") || subject.isInGroup("sudo")) {
+        return polkit.Result.NOT_HANDLED;
+    }
+
+    if (action.id.indexOf("org.freedesktop.login1.reboot") === 0 ||
+        action.id.indexOf("org.freedesktop.login1.set-reboot") === 0 ||
+        action.id.indexOf("org.freedesktop.login1.power-off") === 0 ||
+        action.id.indexOf("org.freedesktop.login1.suspend") === 0 ||
+        action.id.indexOf("org.freedesktop.login1.hibernate") === 0) {
+        return polkit.Result.NO;
+    }
+    if (action.id.indexOf("org.freedesktop.consolekit.system.stop") === 0 ||
+        action.id.indexOf("org.freedesktop.consolekit.system.restart") === 0 ||
+        action.id.indexOf("org.freedesktop.upower.suspend") === 0 ||
+        action.id.indexOf("org.freedesktop.upower.hibernate") === 0) {
+        return polkit.Result.NO;
+    }
+});

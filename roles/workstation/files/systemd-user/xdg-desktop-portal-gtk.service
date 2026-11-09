@@ -1,0 +1,12 @@
+# Copy of /usr/lib/systemd/user/xdg-desktop-portal-gtk.service with
+# After=graphical-session.target dropped, for the same reason as
+# xdg-desktop-portal.service. Re-check after an xdg-desktop-portal-gtk upgrade.
+[Unit]
+Description=Portal service (GTK/GNOME implementation)
+PartOf=graphical-session.target
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.impl.portal.desktop.gtk
+ExecStart=/usr/libexec/xdg-desktop-portal-gtk

@@ -1,0 +1,97 @@
+- name: Swap | Install systemd-zram-generator
+  ansible.builtin.apt:
+    name: systemd-zram-generator
+    state: present
+
+- name: Swap | Deploy zram-generator config
+  ansible.builtin.copy:
+    src: zram-generator.conf
+    dest: /etc/systemd/zram-generator.conf
+    mode: "0644"
+  notify: Restart zram
+
+- name: Swap | Deploy zram sysctl tuning
+  ansible.builtin.copy:
+    src: 99-zram.conf
+    dest: /etc/sysctl.d/99-zram.conf
+    mode: "0644"
+  notify: Reload sysctl
+
+- name: Swap | Reload systemd daemon
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Swap | Start zram device
+  ansible.builtin.service:
+    name: systemd-zram-setup@zram0.service
+    state: started
+  failed_when: false
+
+- name: Swap | Flush handlers for zram
+  ansible.builtin.meta: flush_handlers
+
+- name: Swap | Determine disk swapfile target size
+  ansible.builtin.set_fact:
+    common_disk_swap_target: "{{ [8, ansible_facts['memtotal_mb'] // 1024 // 4] | min }}"
+
+- name: Swap | Remove swapfile entries from fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    regexp: '^\s*/swapfile\s'
+    state: absent
+
+- name: Swap | Deploy swapfile systemd unit
+  ansible.builtin.copy:
+    src: swapfile.swap
+    dest: /etc/systemd/system/swapfile.swap
+    mode: "0644"
+  notify: Restart swapfile
+
+- name: Swap | Reload systemd for swapfile unit
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: Swap | Get current swapfile size
+  ansible.builtin.stat:
+    path: /swapfile
+  register: common_swapfile
+
+- name: Swap | Resize disk swapfile
+  when: >
+    not common_swapfile.stat.exists or
+    common_swapfile.stat.size < (common_disk_swap_target | int * 1073741824)
+  block:
+    - name: Swap | Stop swapfile unit
+      ansible.builtin.systemd:
+        name: swapfile.swap
+        state: stopped
+      failed_when: false
+
+    - name: Swap | Turn off disk swap
+      ansible.builtin.command:
+        cmd: swapoff /swapfile
+      failed_when: false
+      changed_when: true
+
+    - name: Swap | Create disk swapfile
+      ansible.builtin.command:
+        cmd: "fallocate -l {{ common_disk_swap_target }}G /swapfile"
+      changed_when: true
+
+    - name: Swap | Set swapfile permissions
+      ansible.builtin.file:
+        path: /swapfile
+        owner: root
+        group: root
+        mode: "u=rw,g=,o="
+
+    - name: Swap | Format swapfile
+      ansible.builtin.command:
+        cmd: mkswap /swapfile
+      changed_when: true
+
+- name: Swap | Enable swapfile unit
+  ansible.builtin.systemd:
+    name: swapfile.swap
+    enabled: true
+    state: started

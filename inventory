@@ -1,0 +1,8 @@
+[workstations]
+workstation-01.example.com
+workstation-02.example.com
+workstation-03.example.com
+
+[computeservers]
+
+[mobilestations]

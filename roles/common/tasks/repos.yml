@@ -1,0 +1,65 @@
+- name: Repos | Ensure software-properties-common is installed
+  ansible.builtin.apt:
+    name: software-properties-common
+    state: present
+
+- name: Repos | Add Launchpad PPAs
+  ansible.builtin.command:
+    cmd: add-apt-repository -y -n "{{ item }}"
+  register: common_ppa_result
+  changed_when: "'Enabling' in common_ppa_result.stderr or 'Adding' in common_ppa_result.stderr"
+  failed_when: common_ppa_result.rc != 0
+  loop:
+    - ppa:graphics-drivers/ppa
+    - ppa:ansible/ansible
+    - ppa:git-core/ppa
+
+- name: Repos | Fetch Apptainer PPA signing key
+  ansible.builtin.get_url:
+    url: https://keyserver.ubuntu.com/pks/lookup?op=get&search=0xF6B0F5193D4F3301EF491FF0AFE36534FC6218AE
+    dest: /etc/apt/keyrings/apptainer.asc
+    owner: root
+    group: root
+    mode: "0644"
+  when: not ansible_check_mode
+
+- name: Repos | Add Apptainer PPA
+  ansible.builtin.deb822_repository:
+    name: apptainer
+    types: deb
+    uris: https://ppa.launchpadcontent.net/apptainer/ppa/ubuntu
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: main
+    signed_by: /etc/apt/keyrings/apptainer.asc
+    state: present
+  register: common_apptainer_repo
+  when: not ansible_check_mode
+
+- name: Repos | Add Kitware CMake repository
+  ansible.builtin.deb822_repository:
+    name: kitware
+    types: deb
+    uris: https://apt.kitware.com/ubuntu
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: main
+    signed_by: https://apt.kitware.com/keys/kitware-archive-latest.asc
+
+- name: Repos | Add XanMod kernel repository
+  ansible.builtin.deb822_repository:
+    name: xanmod
+    types: deb
+    uris: http://deb.xanmod.org
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: main
+    architectures: amd64
+    signed_by: https://dl.xanmod.org/archive.key
+
+- name: Repos | Add Zabbly kernel repository
+  ansible.builtin.deb822_repository:
+    name: zabbly-kernel-stable
+    types: deb
+    uris: https://pkgs.zabbly.com/kernel/stable
+    suites: "{{ ansible_facts['distribution_release'] }}"
+    components: main
+    architectures: amd64
+    signed_by: https://pkgs.zabbly.com/key.asc

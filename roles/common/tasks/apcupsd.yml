@@ -1,0 +1,26 @@
+- name: Apcupsd | Detect USB HID UPS
+  ansible.builtin.shell:
+    cmd: lsusb | grep -iE 'UPS|uninterruptible|American Power' || true
+  register: common_ups_detected
+  changed_when: false
+
+- name: Apcupsd | Install apcupsd
+  ansible.builtin.apt:
+    name: apcupsd
+    state: present
+  when: common_ups_detected.stdout | length > 0
+
+- name: Apcupsd | Deploy apcupsd configuration
+  ansible.builtin.copy:
+    src: apcupsd.conf
+    dest: /etc/apcupsd/apcupsd.conf
+    mode: "0644"
+  when: common_ups_detected.stdout | length > 0
+  notify: Restart apcupsd
+
+- name: Apcupsd | Enable and start apcupsd
+  ansible.builtin.service:
+    name: apcupsd
+    state: started
+    enabled: true
+  when: common_ups_detected.stdout | length > 0

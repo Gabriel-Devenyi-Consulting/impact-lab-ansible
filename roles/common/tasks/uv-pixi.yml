@@ -1,0 +1,39 @@
+- name: Software | Download uv archive
+  ansible.builtin.get_url:
+    url: "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz"
+    dest: /tmp/uv.tar.gz
+    mode: "0644"
+
+- name: Software | Install uv
+  ansible.builtin.unarchive:
+    src: /tmp/uv.tar.gz
+    dest: /usr/local/bin
+    remote_src: true
+    extra_opts: [--strip-components=1]
+    mode: "0755"
+
+- name: Software | Install pixi to /usr/local/bin
+  ansible.builtin.get_url:
+    url: "https://github.com/prefix-dev/pixi/releases/latest/download/pixi-x86_64-unknown-linux-musl"
+    dest: /usr/local/bin/pixi
+    mode: "0755"
+
+- name: Software | Ensure uv tools directory exists
+  ansible.builtin.file:
+    path: /opt/uv-tools
+    state: directory
+    mode: "0755"
+
+- name: Software | Install system-wide Python tools via uv
+  ansible.builtin.command: uv tool install {{ item.pkg }}
+  args:
+    creates: "/usr/local/bin/{{ item.bin }}"
+  environment:
+    UV_TOOL_DIR: /opt/uv-tools
+    UV_TOOL_BIN_DIR: /usr/local/bin
+  loop:
+    - { pkg: rsyncy,     bin: rsyncy }
+    - { pkg: globus-cli, bin: globus }
+    - { pkg: visidata,   bin: vd }
+    - { pkg: awscli,     bin: aws }
+    - { pkg: datalad,    bin: datalad }

@@ -1,0 +1,7 @@
+ansible.log
+*retry
+.serena
+__pycache__/
+*.pyc
+inventory.local
+.claude/

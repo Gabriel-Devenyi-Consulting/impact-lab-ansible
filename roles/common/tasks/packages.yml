@@ -1,0 +1,124 @@
+- name: Packages | Dist-upgrade
+  ansible.builtin.apt:
+    upgrade: dist
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Packages | Accept mscorefonts EULA
+  ansible.builtin.debconf:
+    name: ttf-mscorefonts-installer
+    question: msttcorefonts/accepted-mscorefonts-eula
+    value: "true"
+    vtype: select
+
+- name: Packages | Install common apt packages
+  ansible.builtin.apt:
+    name: "{{ packages }}"
+    update_cache: true
+    state: present
+  vars:
+    packages:
+      - apptainer
+      - openjdk-17-jre
+      - openjdk-17-jdk
+      - default-jre-headless
+      - ccache
+      - watchdog
+      - htop
+      - iotop
+      - xauth
+      - landscape-common
+      - tmux
+      - screen
+      - imagemagick
+      - exfatprogs
+      - ntfs-3g
+      - dosfstools
+      - xfsprogs
+      - dmsetup
+      - kpartx
+      - openssh-server
+      - parallel
+      - quota
+      - nmap
+      - lrzip
+      - p7zip-full
+      - unrar
+      - zip
+      - unzip
+      - sharutils
+      - rar
+      - gdebi-core
+      - dkms
+      - ansible
+      - apparmor-profiles-extra
+      - apparmor-profiles
+      - smartmontools
+      - squashfs-tools
+      - links2
+      - aptitude
+      - tree
+      - unattended-upgrades
+      - nvme-cli
+      - ncdu
+      - vim
+      - emacs
+      - build-essential
+      - source-highlight
+      - cmake
+      - cmake-curses-gui
+      - gcc
+      - gfortran
+      - default-jdk
+      - git
+      - make
+      - ninja-build
+      - bc
+      - bison
+      - flex
+      - libx11-dev
+      - x11proto-core-dev
+      - libxi6
+      - libxi-dev
+      - libxmu6
+      - libxmu-dev
+      - libxmu-headers
+      - libgl1-mesa-dev
+      - libglu1-mesa-dev
+      - libxrandr-dev
+      - libjpeg-dev
+      - libssl-dev
+      - zlib1g-dev
+      - automake
+      - g++
+      - python-is-python3
+      - libeigen3-dev
+      - libqt5opengl5-dev
+      - libqt5svg5-dev
+      - libfftw3-dev
+      - libtiff5-dev
+      - libpng-dev
+      - tcsh
+      - xfonts-base
+      - python3-matplotlib
+      - gsl-bin
+      - netpbm
+      - xvfb
+      - xterm
+      - curl
+      - libglw1-mesa
+      - libxm4
+      - libcurl4-openssl-dev
+      - libxml2-dev
+      - libgomp1
+      - xfonts-100dpi
+      - libhwloc-dev
+      - hwloc
+      - libreadline-dev
+      - libpam-dev
+      - man2html-base
+      - libmunge-dev
+      - libmunge2
+      - munge
+      - libqt5pas1
+      - fuse3

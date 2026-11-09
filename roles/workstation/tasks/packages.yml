@@ -1,0 +1,93 @@
+# shared/default-x-display-manager is answered by every display manager package,
+# and kubuntu-desktop drags in SDDM. Preseed the answer before gdm3 arrives so
+# its postinst selects GDM instead of leaving whatever got there first.
+- name: Workstation | Select GDM as the default display manager
+  ansible.builtin.debconf:
+    name: gdm3
+    question: shared/default-x-display-manager
+    value: gdm3
+    vtype: select
+
+- name: Workstation | Install apt packages
+  ansible.builtin.apt:
+    name: "{{ packages }}"
+    update_cache: true
+    state: present
+  vars:
+    packages:
+      - gdm3
+      - texlive-full
+      - x2goserver
+      - x2goclient
+      - x2goserver-xsession
+      - kate
+      - partitionmanager
+      - language-pack-en
+      - language-pack-fr
+      - language-pack-gnome-en
+      - language-pack-gnome-fr
+      - gimp-help-en
+      - gimp-help-fr
+      - feh
+      - xfig
+      - meshlab
+      - google-chrome-stable
+      - brave-browser
+      - hunspell-en-ca
+      - hunspell-en-gb
+      - hunspell-en-med
+      - hunspell-fr
+      - libreoffice
+      - libreoffice-style-breeze
+      - inkscape
+      - gimp
+      - vlc
+      - flatpak
+      - default-jre
+      - firefox
+      - kubuntu-restricted-addons
+      - kubuntu-restricted-extras
+      - code
+      - zoom
+      - zotero
+
+# The debconf answer above only steers package postinsts, which will not run
+# again on a host where gdm3 is already installed. These two are what actually
+# decide the login manager, so set them directly as well.
+- name: Workstation | Record GDM in /etc/X11/default-display-manager
+  ansible.builtin.copy:
+    content: "/usr/sbin/gdm3\n"
+    dest: /etc/X11/default-display-manager
+    mode: "0644"
+
+# Not `systemctl enable gdm3`: gdm.service declares only
+# Alias=display-manager.service, and enabling refuses to replace an existing
+# symlink — exactly the case here, where SDDM may already own it. Managing the
+# link directly overwrites it. The /lib path matches what the Debian postinst
+# writes, so a host already configured by dpkg-reconfigure shows no diff.
+#
+# Deliberately no restart: switching the display manager kills every logged-in
+# graphical session. This takes effect at the next reboot.
+- name: Workstation | Point display-manager.service at GDM
+  ansible.builtin.file:
+    src: /lib/systemd/system/gdm3.service
+    dest: /etc/systemd/system/display-manager.service
+    state: link
+    force: true
+
+- name: Workstation | Remove problematic software
+  ansible.builtin.apt:
+    name: ktorrent
+    state: absent
+    update_cache: true
+    cache_valid_time: 3600
+
+- name: Workstation | Auto-detect and install latest nvidia driver
+  ansible.builtin.command: ubuntu-drivers install
+  changed_when: true
+
+- name: Workstation | Enable flatpak flathub repo
+  community.general.flatpak_remote:
+    name: flathub
+    state: present
+    flatpakrepo_url: https://flathub.org/repo/flathub.flatpakrepo

@@ -1,0 +1,15 @@
+---
+- name: Configure workstations and compute servers
+  hosts: workstations computeservers mobilestations
+  become: true
+  roles:
+    - common
+
+- name: Configure desktop environments
+  hosts: workstations mobilestations
+  become: true
+  roles:
+    - workstation
+
+- name: Configure CVMFS and Lmod
+  import_playbook: externals/cvmfs-ansible/site.yml

@@ -1,0 +1,98 @@
+- name: DwarFS | Get latest release from GitHub
+  ansible.builtin.uri:
+    url: https://api.github.com/repos/mhx/dwarfs/releases/latest
+    return_content: true
+  register: common_dwarfs_release
+
+- name: DwarFS | Set version fact
+  ansible.builtin.set_fact:
+    common_dwarfs_version: "{{ common_dwarfs_release.json.tag_name | regex_replace('^v', '') }}"
+
+- name: DwarFS | Check current installed version
+  ansible.builtin.slurp:
+    path: /opt/dwarfs/VERSION
+  register: common_dwarfs_installed_version
+  failed_when: false
+
+- name: DwarFS | Download tarball
+  ansible.builtin.get_url:
+    url: "https://github.com/mhx/dwarfs/releases/download/v{{ common_dwarfs_version }}/dwarfs-{{ common_dwarfs_version }}-Linux-x86_64.tar.xz"
+    dest: "/tmp/dwarfs-{{ common_dwarfs_version }}.tar.xz"
+    mode: "0644"
+  when: >
+    common_dwarfs_installed_version is failed or
+    'content' not in common_dwarfs_installed_version or
+    (common_dwarfs_installed_version.content | b64decode | trim) != common_dwarfs_version
+  register: common_dwarfs_download
+
+- name: DwarFS | Install new version # noqa: no-handler
+  when: common_dwarfs_download is changed
+  block:
+    - name: DwarFS | Remove old installation
+      ansible.builtin.file:
+        path: /opt/dwarfs
+        state: absent
+
+    - name: DwarFS | Extract tarball
+      ansible.builtin.unarchive:
+        src: "/tmp/dwarfs-{{ common_dwarfs_version }}.tar.xz"
+        dest: /opt
+        remote_src: true
+        extra_opts: "--transform=s/^dwarfs-{{ common_dwarfs_version }}-Linux-x86_64/dwarfs/"
+
+    - name: DwarFS | Write version file
+      ansible.builtin.copy:
+        dest: /opt/dwarfs/VERSION
+        content: "{{ common_dwarfs_version }}\n"
+        mode: "0644"
+
+    - name: DwarFS | Cleanup tarball
+      ansible.builtin.file:
+        path: "/tmp/dwarfs-{{ common_dwarfs_version }}.tar.xz"
+        state: absent
+
+- name: DwarFS | Symlink binaries to /usr/local/bin
+  ansible.builtin.file:
+    src: "/opt/dwarfs/bin/{{ item }}"
+    dest: "/usr/local/bin/{{ item }}"
+    state: link
+  loop:
+    - mkdwarfs
+    - dwarfs
+    - dwarfs2
+    - dwarfsck
+    - dwarfsextract
+    - pxattr
+
+- name: DwarFS | Symlink sbin helpers to /usr/local/sbin
+  ansible.builtin.file:
+    src: "/opt/dwarfs/sbin/{{ item }}"
+    dest: "/usr/local/sbin/{{ item }}"
+    state: link
+  loop:
+    - mount.dwarfs
+    - mount.dwarfs2
+
+- name: DwarFS | Symlink bash completions
+  ansible.builtin.file:
+    src: "/opt/dwarfs/share/bash-completion/completions/{{ item }}"
+    dest: "/usr/share/bash-completion/completions/{{ item }}"
+    state: link
+    force: true
+  loop:
+    - mkdwarfs
+    - dwarfs
+    - dwarfsck
+    - dwarfsextract
+
+- name: DwarFS | Symlink man pages
+  ansible.builtin.shell:
+    cmd: >
+      set -o pipefail;
+      find /opt/dwarfs/share/man -type f -printf '%P\n' |
+      while read -r f; do
+        d="/usr/local/share/man/$(dirname "$f")";
+        mkdir -p "$d";
+        ln -sf "/opt/dwarfs/share/man/$f" "$d/$(basename "$f")";
+      done
+    creates: /usr/local/share/man/man1/mkdwarfs.1

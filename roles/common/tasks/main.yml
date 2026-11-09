@@ -1,0 +1,77 @@
+- name: Snapd | Remove and disable snapd
+  ansible.builtin.include_tasks:
+    file: remove-snapd.yml
+    apply:
+      tags: snap
+  tags: snap
+
+- name: Swap | Configure swap file
+  ansible.builtin.include_tasks:
+    file: swap.yml
+    apply:
+      tags: system
+  tags: system
+
+- name: Packages | Configure repositories
+  ansible.builtin.include_tasks:
+    file: repos.yml
+    apply:
+      tags: packages
+  tags: packages
+
+- name: Packages | Install packages
+  ansible.builtin.include_tasks:
+    file: packages.yml
+    apply:
+      tags: packages
+  tags: packages
+
+- name: Files | Deploy configuration files
+  ansible.builtin.include_tasks:
+    file: file-config.yml
+    apply:
+      tags: files
+  tags: files
+
+- name: Apcupsd | Configure USB UPS
+  ansible.builtin.include_tasks:
+    file: apcupsd.yml
+    apply:
+      tags: files
+  tags: files
+
+- name: Software | Install DwarFS
+  ansible.builtin.include_tasks:
+    file: dwarfs.yml
+    apply:
+      tags: software
+  tags: software
+
+- name: Software | Install uv and pixi
+  ansible.builtin.include_tasks:
+    file: uv-pixi.yml
+    apply:
+      tags: software
+  tags: software
+
+- name: SSH | Enable SSH key for localadmin
+  ansible.posix.authorized_key:
+    user: localadmin
+    key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+  tags: system
+
+- name: Locale | Set default locale to en_CA.UTF-8
+  ansible.builtin.debconf:
+    name: locales
+    question: locales/default_environment_locale
+    value: en_CA.UTF-8
+    vtype: select
+  tags: system
+
+- name: Apparmor | Configure homedir for apparmor
+  ansible.builtin.debconf:
+    name: apparmor
+    question: apparmor/homedirs
+    value: /home/ad
+    vtype: string
+  tags: system

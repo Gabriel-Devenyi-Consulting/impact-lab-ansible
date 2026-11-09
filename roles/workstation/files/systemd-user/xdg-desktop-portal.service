@@ -1,0 +1,16 @@
+# Copy of /usr/lib/systemd/user/xdg-desktop-portal.service with
+# After=graphical-session.target dropped. A .d drop-in cannot do this: an
+# "After=" reset line is silently ignored by systemd 259, so the ordering has to
+# be removed by overriding the whole unit. Re-check this file against the
+# packaged one after an xdg-desktop-portal upgrade.
+[Unit]
+Description=Portal service
+PartOf=graphical-session.target
+Requires=dbus.service
+After=dbus.service
+
+[Service]
+Type=dbus
+BusName=org.freedesktop.portal.Desktop
+ExecStart=/usr/libexec/xdg-desktop-portal
+Slice=session.slice

@@ -1,0 +1,71 @@
+- name: Workstation | Install flatpak auto-update service
+  ansible.builtin.copy:
+    src: flatpak-update.service
+    dest: /etc/systemd/system/flatpak-update.service
+    mode: "0644"
+
+- name: Workstation | Install flatpak auto-update timer
+  ansible.builtin.copy:
+    src: flatpak-update.timer
+    dest: /etc/systemd/system/flatpak-update.timer
+    mode: "0644"
+
+- name: Workstation | Enable flatpak auto-update timer
+  ansible.builtin.systemd:
+    name: flatpak-update.timer
+    state: started
+    enabled: true
+    daemon_reload: true
+
+# GDM has no DefaultSession option: the session it launches is whatever
+# AccountsService recorded for the user, and a user it has never seen gets an
+# empty record, which lands in GDM's built-in gnome-session fallback and dies
+# on this GNOME-less install ("GdmDisplay: Session never registered, failing").
+# accounts-daemon seeds new user records from these templates (stock copies
+# live in /usr/share/accountsservice/user-templates), so fresh AD accounts get
+# Plasma recorded at their first login.
+- name: Workstation | Create the accountsservice user-template directory
+  ansible.builtin.file:
+    path: /etc/accountsservice/user-templates
+    state: directory
+    mode: "0755"
+
+- name: Workstation | Default new users to the Plasma session
+  ansible.builtin.copy:
+    src: "user-templates/{{ item }}"
+    dest: "/etc/accountsservice/user-templates/{{ item }}"
+    mode: "0644"
+  loop:
+    - standard
+    - administrator
+
+# Plasma reaches graphical-session.target only after plasma-core.target, which
+# waits on plasmashell/kcminit/kded6/ksmserver. Those are Qt apps, and Qt 6.9+
+# contacts org.freedesktop.portal.Desktop on startup — but the portal units ship
+# with After=graphical-session.target, so that activation request queues behind
+# the very services waiting on it. On a fast login it clears in about a second
+# and nobody notices; on a slow one it turns into 40-120s stalls, long enough
+# for plasmashell to burn its 3-restart limit and abort the shell load. kwin is
+# up by then, so the user gets a lit screen with a cursor and nothing else —
+# the "black screen after login". Seen on all three workstations.
+#
+# The portals need whole-unit overrides rather than drop-ins because systemd 259
+# ignores an "After=" reset line in a drop-in; verified on a deployed workstation.
+#
+# No daemon-reload: these are user units, re-read when each user manager starts,
+# so the fix lands at the next login without disturbing anyone's session.
+- name: Workstation | Create the plasmashell drop-in directory
+  ansible.builtin.file:
+    path: /etc/systemd/user/plasma-plasmashell.service.d
+    state: directory
+    mode: "0755"
+
+- name: Workstation | Unblock the desktop portal and harden Plasma startup
+  ansible.builtin.copy:
+    src: "systemd-user/{{ item }}"
+    dest: "/etc/systemd/user/{{ item }}"
+    mode: "0644"
+  loop:
+    - xdg-desktop-portal.service
+    - xdg-desktop-portal-gtk.service
+    - plasma-plasmashell.service.d/10-startup-resilience.conf

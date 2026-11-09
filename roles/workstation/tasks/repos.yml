@@ -1,0 +1,69 @@
+- name: Workstation | Add PPAs
+  ansible.builtin.command:
+    cmd: add-apt-repository -y -n "{{ item }}"
+  register: workstation_ppa_result
+  changed_when: "'Enabling' in workstation_ppa_result.stderr or 'Adding' in workstation_ppa_result.stderr"
+  failed_when: workstation_ppa_result.rc != 0
+  loop:
+    - ppa:kubuntu-ppa/backports
+    - ppa:kubuntu-ppa/ppa
+    - ppa:ubuntuhandbook1/gimp-3
+    - ppa:inkscape.dev/stable
+    - ppa:libreoffice/ppa
+
+- name: Workstation | Add Visual Studio Code repository
+  ansible.builtin.deb822_repository:
+    name: vscode
+    types: deb
+    uris: https://packages.microsoft.com/repos/code
+    suites: stable
+    components: main
+    architectures: amd64
+    signed_by: https://packages.microsoft.com/keys/microsoft.asc
+
+- name: Workstation | Add Zoom repository
+  ansible.builtin.deb822_repository:
+    name: zoom
+    types: deb
+    uris: https://mirror.mwt.me/zoom/deb
+    suites: any
+    components: main
+    architectures: amd64
+    signed_by: https://mirror.mwt.me/zoom/gpgkey
+
+- name: Workstation | Add Zotero repository
+  ansible.builtin.deb822_repository:
+    name: zotero
+    types: deb
+    uris: https://mirror.mwt.me/zotero/deb
+    suites: ./
+    signed_by: https://raw.githubusercontent.com/retorquere/zotero-pkg/master/zotero-archive-keyring.gpg
+
+- name: Repos | Add Google Chrome repository
+  ansible.builtin.deb822_repository:
+    name: google-chrome
+    types: deb
+    uris: https://dl.google.com/linux/chrome/deb
+    suites: stable
+    components: main
+    architectures: amd64
+    signed_by: https://dl-ssl.google.com/linux/linux_signing_key.pub
+
+- name: Repos | Add Brave Browser repository
+  ansible.builtin.deb822_repository:
+    name: brave-browser
+    types: deb
+    uris: https://brave-browser-apt-release.s3.brave.com
+    suites: stable
+    components: main
+    architectures: amd64
+    signed_by: https://brave-browser-apt-release.s3.brave.com/brave-browser-archive-keyring.gpg
+
+- name: Repos | Add Mozilla Firefox repository
+  ansible.builtin.deb822_repository:
+    name: mozilla
+    types: deb
+    uris: https://packages.mozilla.org/apt
+    suites: mozilla
+    components: main
+    signed_by: https://packages.mozilla.org/apt/repo-signing-key.gpg
