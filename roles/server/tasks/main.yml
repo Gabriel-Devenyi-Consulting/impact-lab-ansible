@@ -1,0 +1,20 @@
+---
+- name: Server | Install unattended-upgrades
+  ansible.builtin.apt:
+    name: unattended-upgrades
+    state: present
+  tags: packages
+
+- name: Server | Enable periodic upgrades
+  ansible.builtin.copy:
+    src: 20auto-upgrades
+    dest: /etc/apt/apt.conf.d/20auto-upgrades
+    mode: "0644"
+  tags: files
+
+- name: Server | Configure unattended-upgrades for servers
+  ansible.builtin.copy:
+    src: 60unattended-upgrades-local
+    dest: /etc/apt/apt.conf.d/60unattended-upgrades-local
+    mode: "0644"
+  tags: files
