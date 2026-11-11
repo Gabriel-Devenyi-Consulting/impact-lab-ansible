@@ -319,6 +319,30 @@ server is busy. The pieces are:
 and start empty after every reboot. The change takes effect at a user's next
 login once all their existing sessions have ended.
 
+## NFS write smoothing
+
+The file server has a single 1 Gb/s port shared by every workstation. With the
+kernel's default settings, a job that writes large files to NFS holds them in
+memory and then sends up to 256 MB at once at full link speed. For several
+seconds everything else on that workstation's NFS mounts waits behind the
+burst, and the server's port is full for the other workstations too.
+
+`roles/common` installs `/etc/sysctl.d/60-nfs-writeback.conf`:
+
+| Setting | Value | Stock | Effect |
+|---------|-------|-------|--------|
+| `vm.dirty_background_bytes` | 64 MB | 10% of RAM | Start sending data while it is being written |
+| `vm.dirty_bytes` | 1 GB | 20% of RAM | Slow down a writer that gets far ahead of the link |
+| `fs.nfs.nfs_congestion_kb` | 64 MB | 256 MB | Limit NFS writes in flight, so other operations wait at most about 0.5 s |
+
+The `nfs` module is loaded at boot (`/etc/modules-load.d/nfs.conf`) so that
+the `fs.nfs` setting exists when `systemd-sysctl` applies it. Total throughput
+does not change; only the size of each burst does. To apply only this part:
+
+```bash
+ansible-playbook site.yml --tags nfs-writeback
+```
+
 ## Local scratch
 
 `roles/common` gives every user a directory on the host's local disk at

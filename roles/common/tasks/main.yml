@@ -12,6 +12,13 @@
       tags: system
   tags: system
 
+- name: NFS writeback | Smooth out NFS write bursts
+  ansible.builtin.include_tasks:
+    file: nfs-writeback.yml
+    apply:
+      tags: [system, nfs-writeback]
+  tags: [system, nfs-writeback]
+
 - name: Packages | Configure repositories
   ansible.builtin.include_tasks:
     file: repos.yml

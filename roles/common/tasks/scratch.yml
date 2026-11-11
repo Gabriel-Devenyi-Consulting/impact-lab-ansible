@@ -36,15 +36,17 @@
 # who are logged in now their directory without waiting for a fresh login.
 - name: Scratch | Create scratch directories for users already logged in
   ansible.builtin.shell: |
-    set -eu
+    set -euo pipefail
     for uid in $(loginctl list-users --no-legend | awk '$1 >= 1000 {print $1}'); do
       user=$(getent passwd "$uid" | cut -d: -f1) || continue
       [ -d "/scratch/$user" ] && continue
       /usr/local/libexec/scratch-dir "$uid"
       echo "created /scratch/$user"
     done
-  register: scratch_existing_users
-  changed_when: scratch_existing_users.stdout | length > 0
+  args:
+    executable: /bin/bash
+  register: common_scratch_existing_users
+  changed_when: common_scratch_existing_users.stdout | length > 0
 
 # Neurodesk's wrappers bind only /tmp and whatever the user lists in
 # APPTAINER_BIND, so without this a container cannot see /scratch and
