@@ -28,3 +28,34 @@
     state: started
   loop: "{{ server_zfs_scrub_pools }}"
   tags: zfs
+
+# When one client sends at full link speed, the queue forms in the switch
+# port facing this server, which drops other clients' packets along with the
+# sender's. Shaping just below link speed moves the queue here, where CAKE
+# keeps small flows moving. Off unless an interface is named.
+- name: Server | Install the ingress shaping script
+  ansible.builtin.copy:
+    src: ingress-shape
+    dest: /usr/local/sbin/ingress-shape
+    mode: "0755"
+  when: server_ingress_shape_interface | length > 0
+  notify: Restart ingress shaping
+  tags: network
+
+- name: Server | Install the ingress shaping service
+  ansible.builtin.template:
+    src: ingress-shape.service.j2
+    dest: /etc/systemd/system/ingress-shape.service
+    mode: "0644"
+  when: server_ingress_shape_interface | length > 0
+  notify: Restart ingress shaping
+  tags: network
+
+- name: Server | Enable ingress shaping
+  ansible.builtin.systemd_service:
+    name: ingress-shape.service
+    enabled: true
+    state: started
+    daemon_reload: true
+  when: server_ingress_shape_interface | length > 0
+  tags: network

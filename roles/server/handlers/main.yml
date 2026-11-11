@@ -1,0 +1,6 @@
+---
+- name: Restart ingress shaping
+  ansible.builtin.systemd_service:
+    name: ingress-shape.service
+    state: restarted
+    daemon_reload: true

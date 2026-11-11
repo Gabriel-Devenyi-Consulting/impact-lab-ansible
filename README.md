@@ -181,6 +181,8 @@ targeted).
   with no automatic reboots. See [Servers](#servers).
 - **ZFS scrubs:** a monthly scrub for each pool named in
   `server_zfs_scrub_pools`. See [Servers](#servers).
+- **Incoming traffic shaping:** optional, for a file server whose port is no
+  faster than its clients'. See [Servers](#servers).
 
 ### `externals/cvmfs-ansible` — CVMFS + Lmod (all hosts)
 
@@ -204,7 +206,7 @@ full details.
 ├── requirements.yml       # ansible.posix, community.general collections
 ├── roles/
 │   ├── common/            # base system role (tasks, handlers, files, vars)
-│   ├── server/            # automatic updates and ZFS scrubs for servers
+│   ├── server/            # automatic updates, ZFS scrubs, traffic shaping for servers
 │   └── workstation/       # desktop environment role (tasks, files, templates)
 ├── externals/
 │   └── cvmfs-ansible/     # CVMFS + Lmod integration (git submodule)
@@ -306,10 +308,33 @@ upgrade interrupts every client of its services:
 
   The list is empty by default. Check the last scrub with `zpool status`.
 
-The server play is tagged `packages`, `files` and `zfs`:
+- **Incoming traffic shaping:** when a client sends to the server at the full
+  speed of the server's port, the queue forms in the switch port facing the
+  server. A full switch queue drops packets from every client, and each
+  dropped NFS request then waits at least 200 ms for a TCP retry, so one
+  machine's large write makes the others sluggish. Shaping incoming traffic
+  to just below the link speed moves the queue onto the server, where
+  [CAKE](https://www.bufferbloat.net/projects/codel/wiki/Cake/) lets small
+  requests through ahead of the bulk stream. Name the interface to turn it
+  on:
+
+  ```ini
+  [servers]
+  nas.example.com server_ingress_shape_interface=eth0
+  ```
+
+  `server_ingress_shape_rate` defaults to `900mbit`, which suits a 1 Gb/s
+  port; set it to about 90% of the link speed. Measured with one client
+  writing at full speed: other clients' small operations took a median of
+  10 ms with 1 in 4 over 100 ms unshaped, and 2.4 ms with almost none over
+  100 ms shaped. The cost is about 10% of peak write speed. It runs as
+  `ingress-shape.service`; `systemctl disable --now ingress-shape` turns it
+  off.
+
+The server play is tagged `packages`, `files`, `zfs` and `network`:
 
 ```bash
-ansible-playbook site.yml --limit servers --tags packages,files,zfs
+ansible-playbook site.yml --limit servers --tags packages,files,zfs,network
 ```
 
 ## Per-user caches
@@ -335,23 +360,35 @@ login once all their existing sessions have ended.
 
 ## NFS write smoothing
 
-The file server has a single 1 Gb/s port shared by every workstation. With the
-kernel's default settings, a job that writes large files to NFS holds them in
-memory and then sends up to 256 MB at once at full link speed. For several
-seconds everything else on that workstation's NFS mounts waits behind the
-burst, and the server's port is full for the other workstations too.
+A program can write far faster than a 1 Gb/s link to the file server carries,
+and the kernel holds the difference in memory. Every other NFS request from
+that workstation then waits behind the backlog, so the desktop freezes while a
+job writes large files to NFS.
 
 `roles/common` installs `/etc/sysctl.d/60-nfs-writeback.conf`:
 
 | Setting | Value | Stock | Effect |
 |---------|-------|-------|--------|
-| `vm.dirty_background_bytes` | 64 MB | 10% of RAM | Start sending data while it is being written |
-| `vm.dirty_bytes` | 1 GB | 20% of RAM | Slow down a writer that gets far ahead of the link |
-| `fs.nfs.nfs_congestion_kb` | 64 MB | 256 MB | Limit NFS writes in flight, so other operations wait at most about 0.5 s |
+| `vm.dirty_background_bytes` | 16 MB | 10% of RAM | Start sending data while it is being written |
+| `vm.dirty_bytes` | 64 MB | 20% of RAM | Bound the backlog a writer can build up |
+| `fs.nfs.nfs_congestion_kb` | 64 MB | 256 MB | Limit NFS writes queued by background writeback |
 
-The `nfs` module is loaded at boot (`/etc/modules-load.d/nfs.conf`) so that
-the `fs.nfs` setting exists when `systemd-sysctl` applies it. Total throughput
-does not change; only the size of each burst does. To apply only this part:
+`vm.dirty_bytes` is the one that matters. Measured on a 128 GB workstation
+writing a 6 GB file to NFS, with a small file operation timed on the same
+machine:
+
+| `vm.dirty_bytes` | Backlog | Longest wait for a small operation |
+|------------------|---------|------------------------------------|
+| stock (about 20 GB) | 6 GB | 52 s |
+| 1 GB | 830 MB | 18 s |
+| 128 MB | 105 MB | 2 s |
+| 64 MB | 60 MB | 1 s |
+
+Write speed was the same at every setting, both to NFS (about 115 MB/s) and to
+local NVMe (about 4.4 GB/s). The setting applies to every filesystem on the
+host. The `nfs` module is loaded at boot (`/etc/modules-load.d/nfs.conf`) so
+that the `fs.nfs` setting exists when `systemd-sysctl` applies it. To apply
+only this part:
 
 ```bash
 ansible-playbook site.yml --tags nfs-writeback

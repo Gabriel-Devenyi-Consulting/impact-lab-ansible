@@ -2,3 +2,9 @@
 # ZFS pools to scrub monthly. Empty by default: set it per host or group, for
 # example `server_zfs_scrub_pools=["tank"]` in the inventory.
 server_zfs_scrub_pools: []
+
+# Shape incoming traffic on this interface to just under its link speed, for
+# example `server_ingress_shape_interface=eth0`. Empty by default (off). See
+# "Incoming traffic shaping" in the README for when this helps.
+server_ingress_shape_interface: ""
+server_ingress_shape_rate: 900mbit
