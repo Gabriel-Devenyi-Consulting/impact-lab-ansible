@@ -1,0 +1,20 @@
+---
+# Make large NFS writes go out in small, steady pieces instead of bursts that
+# fill the file server's network link. The reasoning and the values are in
+# files/60-nfs-writeback.conf.
+
+# fs.nfs.* exists only while the nfs module is loaded. systemd-sysctl runs after
+# systemd-modules-load at boot, so loading nfs there makes the setting apply
+# at every boot, not just when the first NFS mount happens to load it first.
+- name: NFS writeback | Load the nfs module now and at every boot
+  community.general.modprobe:
+    name: nfs
+    state: present
+    persistent: present
+
+- name: NFS writeback | Deploy writeback limits
+  ansible.builtin.copy:
+    src: 60-nfs-writeback.conf
+    dest: /etc/sysctl.d/60-nfs-writeback.conf
+    mode: "0644"
+  notify: Reload sysctl
