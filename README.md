@@ -179,6 +179,8 @@ targeted).
 
 - **Automatic updates:** `unattended-upgrades` for the Ubuntu archive only,
   with no automatic reboots. See [Servers](#servers).
+- **ZFS scrubs:** a monthly scrub for each pool named in
+  `server_zfs_scrub_pools`. See [Servers](#servers).
 
 ### `externals/cvmfs-ansible` — CVMFS + Lmod (all hosts)
 
@@ -202,7 +204,7 @@ full details.
 ├── requirements.yml       # ansible.posix, community.general collections
 ├── roles/
 │   ├── common/            # base system role (tasks, handlers, files, vars)
-│   ├── server/            # automatic-update policy for servers (tasks, files)
+│   ├── server/            # automatic updates and ZFS scrubs for servers
 │   └── workstation/       # desktop environment role (tasks, files, templates)
 ├── externals/
 │   └── cvmfs-ansible/     # CVMFS + Lmod integration (git submodule)
@@ -292,10 +294,22 @@ upgrade interrupts every client of its services:
 - **No automatic reboots** (`Automatic-Reboot "false"`). Check
   `/var/run/reboot-required` and reboot in a planned window.
 
-The server play is tagged `packages` and `files` like the other roles:
+- **Monthly ZFS scrub:** `zfsutils-linux` ships a monthly scrub timer but
+  turns it on for no pool, so a pool is never checked for silent disk errors
+  until you enable the timer by pool name. List the pools in the inventory and
+  the role enables `zfs-scrub-monthly@<pool>.timer` for each:
+
+  ```ini
+  [servers]
+  nas.example.com server_zfs_scrub_pools='["tank"]'
+  ```
+
+  The list is empty by default. Check the last scrub with `zpool status`.
+
+The server play is tagged `packages`, `files` and `zfs`:
 
 ```bash
-ansible-playbook site.yml --limit servers --tags packages,files
+ansible-playbook site.yml --limit servers --tags packages,files,zfs
 ```
 
 ## Per-user caches
