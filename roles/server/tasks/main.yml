@@ -18,3 +18,13 @@
     dest: /etc/apt/apt.conf.d/60unattended-upgrades-local
     mode: "0644"
   tags: files
+
+# zfsutils-linux ships zfs-scrub-monthly@.timer but enables it for no pool, so
+# a pool is never scrubbed unless its timer instance is turned on by name.
+- name: Server | Enable the monthly scrub for each ZFS pool
+  ansible.builtin.systemd_service:
+    name: "zfs-scrub-monthly@{{ item }}.timer"
+    enabled: true
+    state: started
+  loop: "{{ server_zfs_scrub_pools }}"
+  tags: zfs

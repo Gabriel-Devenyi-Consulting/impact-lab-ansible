@@ -1,0 +1,4 @@
+---
+# ZFS pools to scrub monthly. Empty by default: set it per host or group, for
+# example `server_zfs_scrub_pools=["tank"]` in the inventory.
+server_zfs_scrub_pools: []
