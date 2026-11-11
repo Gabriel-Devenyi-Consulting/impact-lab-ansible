@@ -1,0 +1,14 @@
+# Ansible managed
+[Unit]
+Description=Shape incoming traffic on {{ server_ingress_shape_interface }} to {{ server_ingress_shape_rate }}
+BindsTo=sys-subsystem-net-devices-{{ server_ingress_shape_interface }}.device
+After=sys-subsystem-net-devices-{{ server_ingress_shape_interface }}.device
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/local/sbin/ingress-shape start {{ server_ingress_shape_interface }} {{ server_ingress_shape_rate }}
+ExecStop=/usr/local/sbin/ingress-shape stop {{ server_ingress_shape_interface }}
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,26 @@
+#!/bin/sh
+# Shape traffic arriving on an interface with CAKE, through an IFB device.
+# Usage: ingress-shape start IFACE RATE | ingress-shape stop IFACE
+# Ansible managed.
+set -eu
+action=$1 iface=$2 ifb=ifb-shape
+case $action in
+start)
+    rate=$3
+    modprobe ifb numifbs=0
+    ip link add "$ifb" type ifb 2>/dev/null || true
+    ip link set "$ifb" up
+    tc qdisc replace dev "$iface" handle ffff: ingress
+    tc filter replace dev "$iface" parent ffff: protocol all prio 1 matchall \
+        action mirred egress redirect dev "$ifb"
+    tc qdisc replace dev "$ifb" root cake bandwidth "$rate" ingress
+    ;;
+stop)
+    tc qdisc del dev "$iface" ingress 2>/dev/null || true
+    ip link del "$ifb" 2>/dev/null || true
+    ;;
+*)
+    echo "usage: $0 start IFACE RATE | stop IFACE" >&2
+    exit 2
+    ;;
+esac
